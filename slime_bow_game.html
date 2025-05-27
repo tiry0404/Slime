@@ -1,0 +1,161 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bow Slime Game</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #222; color: white; font-family: sans-serif; overflow: hidden; }
+    canvas { display: block; margin: auto; background: #111; border: 2px solid #555; }
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      z-index: 10;
+      font-size: 18px;
+    }
+    #controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 10;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      background: #444;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div>HP: <span id="playerHp">100</span>%</div>
+    <div>Weapon: <span id="weaponType">Bow</span></div>
+  </div>
+  <div id="controls">
+    <button onclick="moveLeft()">←</button>
+    <button onclick="shootArrow()">Shoot</button>
+    <button onclick="moveRight()">→</button>
+  </div>
+  <canvas id="game" width="400" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const player = {
+      x: 200,
+      y: 550,
+      size: 20,
+      color: "cyan",
+      hp: 100,
+      speed: 15
+    };
+
+    const arrows = [];
+    const boss = {
+      x: 200,
+      y: 100,
+      size: 60,
+      hp: 300,
+      color: "rainbow"
+    };
+
+    function drawPlayer() {
+      ctx.fillStyle = player.color;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw bow
+      ctx.strokeStyle = "gold";
+      ctx.beginPath();
+      ctx.moveTo(player.x - 10, player.y - 20);
+      ctx.lineTo(player.x - 10, player.y + 20);
+      ctx.stroke();
+    }
+
+    function drawBoss() {
+      const gradient = ctx.createLinearGradient(boss.x - boss.size, boss.y, boss.x + boss.size, boss.y);
+      gradient.addColorStop(0, "red");
+      gradient.addColorStop(0.15, "orange");
+      gradient.addColorStop(0.3, "yellow");
+      gradient.addColorStop(0.5, "green");
+      gradient.addColorStop(0.65, "blue");
+      gradient.addColorStop(0.8, "indigo");
+      gradient.addColorStop(1, "violet");
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(boss.x, boss.y, boss.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawArrows() {
+      ctx.fillStyle = "white";
+      for (let arrow of arrows) {
+        ctx.fillRect(arrow.x - 2, arrow.y, 4, 10);
+      }
+    }
+
+    function updateArrows() {
+      for (let arrow of arrows) arrow.y -= arrow.speed;
+      for (let arrow of arrows) {
+        const dx = arrow.x - boss.x;
+        const dy = arrow.y - boss.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < boss.size) {
+          boss.hp -= 10;
+          arrow.hit = true;
+        }
+      }
+      arrows.splice(0, arrows.length, ...arrows.filter(a => !a.hit && a.y > 0));
+    }
+
+    function shootArrow() {
+      arrows.push({ x: player.x, y: player.y - 20, speed: 8 });
+    }
+
+    function moveLeft() {
+      player.x -= player.speed;
+    }
+
+    function moveRight() {
+      player.x += player.speed;
+    }
+
+    function updateUI() {
+      document.getElementById("playerHp").textContent = player.hp;
+      document.getElementById("weaponType").textContent = "Bow";
+    }
+
+    function update() {
+      updateArrows();
+      updateUI();
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawPlayer();
+      drawBoss();
+      drawArrows();
+    }
+
+    function gameLoop() {
+      update();
+      render();
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>
