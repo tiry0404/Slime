@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
@@ -294,6 +294,13 @@ window.addEventListener("keydown", e => {
 });
 
 gameLoop();
-</script>
+</script>function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop(); // 게임 루프 시작!
+
 </body>
 </html>
