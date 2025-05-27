@@ -229,83 +229,79 @@ function updateArrows() {
 function update() {
   updateArrows();
 
-  // AI 업데이트는 ai.js에서 처리
-  updateSlimes();
-  updateBossMovement();
-  updateBossAttack();
+// ai.js
 
-  // 게임 오버 체크
-  if (player.hp <= 0) {
-    alert("Game Over!");
-    window.location.reload();
-  }
-  if (boss.hp <= 0) {
-    alert("You Win!");
-    window.location.reload();
-  }
-}
+// 잡몹 배열과 생성 타이머
+let monsters = [];
+let monsterSpawnTimer = 0;
 
-function render() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawPlayer();
-  drawBoss();
-  drawSlimes();
-  drawArrows();
-  drawAttacks();
-
-  // 플레이어 HP UI
-  document.getElementById("playerHp").textContent = player.hp;
-  document.getElementById("bossHp").textContent = boss.hp;
-}
-
-function gameLoop() {
-  update();
-  render();
-  requestAnimationFrame(gameLoop);
-}
-
-createSlimes(7);
-
-document.getElementById("btnLeft").onclick = movePlayerLeft;
-document.getElementById("btnRight").onclick = movePlayerRight;
-document.getElementById("btnShoot").onclick = shootArrow;
-document.getElementById("btnChangeArrow").onclick = changeArrow;
-
-gameLoop();
-function updateSlimes() {
-  slimes.forEach((s) => {
-    // 플레이어 방향으로 이동
-    let dx = player.x - s.x;
-    let dy = player.y - s.y;
-    let dist = Math.sqrt(dx*dx + dy*dy);
-
-    if (dist > s.size + player.size + 10) {
-      s.x += (dx / dist) * s.speed;
-      s.y += (dy / dist) * s.speed;
-    } else {
-      // 근접 공격 시도
-      if (!s.attackCooldown || s.attackCooldown <= 0) {
-        player.hp -= 5;
-        s.attackCooldown = 60;
-      }
-    }
-    if (s.attackCooldown > 0) s.attackCooldown--;
+// 몬스터 생성 함수
+function spawnMonster() {
+  monsters.push({
+    x: Math.random() * (canvas.width - 40) + 20,
+    y: -30,
+    size: 15,
+    color: "purple",
+    speed: 1.2,
+    hp: 10,
   });
 }
 
-function updateBossMovement() {
-  // 보스는 좌우로 천천히 움직임 (무작위 방향)
-  if (!boss.moveDir) boss.moveDir = 1;
-  boss.x += boss.moveSpeed * boss.moveDir;
-  if (boss.x > canvas.width - boss.size) boss.moveDir = -1;
-  if (boss.x < boss.size) boss.moveDir = 1;
+// 잡몹 이동 및 공격
+function updateMonsters() {
+  monsterSpawnTimer++;
+  if (monsterSpawnTimer > 150) { // 약 2.5초마다 생성
+    monsterSpawnTimer = 0;
+    spawnMonster();
+  }
+
+  monsters.forEach((mon, i) => {
+    // 플레이어 쫓아가기 (y 방향도 포함)
+    let dx = player.x - mon.x;
+    let dy = player.y - mon.y;
+    let dist = Math.sqrt(dx * dx + dy * dy);
+    let angle = Math.atan2(dy, dx);
+
+    if (dist > mon.size + player.size + 5) {
+      mon.x += Math.cos(angle) * mon.speed;
+      mon.y += Math.sin(angle) * mon.speed;
+    } else {
+      // 플레이어와 너무 가까우면 공격 (체력 감소)
+      if (player.hp > 0) player.hp -= 0.5;
+    }
+
+    // 몬스터가 죽으면 배열에서 제거
+    if (mon.hp <= 0) monsters.splice(i, 1);
+  });
 }
 
+// 보스 움직임 업데이트
+let bossMoveCooldown = 0;
+function updateBossMovement() {
+  if (!boss.moveDir) boss.moveDir = 1;
+  if (!boss.moveSpeed) boss.moveSpeed = 1.2;
+
+  boss.x += boss.moveSpeed * boss.moveDir;
+  bossMoveCooldown++;
+
+  // 벽 만나면 방향 전환
+  if (boss.x > canvas.width - boss.size) boss.moveDir = -1;
+  if (boss.x < boss.size) boss.moveDir = 1;
+
+  // 가끔 속도 변경 또는 잠깐 멈춤
+  if (bossMoveCooldown > 180) { // 3초마다
+    bossMoveCooldown = 0;
+    let rand = Math.random();
+    if (rand < 0.3) boss.moveSpeed = 0; // 잠깐 멈춤
+    else boss.moveSpeed = 1 + Math.random(); // 속도 변화 1~2
+  }
+}
+
+// 보스 공격 업데이트
 function updateBossAttack() {
   boss.attackTimer++;
   if (boss.attackTimer > 120) {
     boss.attackTimer = 0;
-    // 공격 패턴 생성 (간단히 공격 범위 생성)
     attacks.push({
       x: boss.x,
       y: boss.y + boss.size + 20,
@@ -319,10 +315,10 @@ function updateBossAttack() {
     atk.timer--;
     if (atk.timer <= 0) attacks.splice(i, 1);
 
-    // 플레이어가 공격 범위 안에 있으면 피해
+    // 플레이어 피해 체크
     let dx = player.x - atk.x;
     let dy = player.y - atk.y;
-    let dist = Math.sqrt(dx*dx + dy*dy);
+    let dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < atk.size + player.size) {
       player.hp -= 1;
     }
