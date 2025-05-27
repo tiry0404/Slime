@@ -1,319 +1,330 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Slime Boss Game</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      background-color: #111;
-      color: #fff;
-      font-family: sans-serif;
-      overflow: hidden;
-    }
-    canvas {
-      display: block;
-      margin: 20px auto;
-      background: #222;
-      border: 2px solid #555;
-    }
-    #ui {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      font-size: 18px;
-    }
-    #controls {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 10px;
-    }
-    button {
-      padding: 8px 16px;
-      font-size: 16px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Slime Game with AI</title>
+<style>
+  body {
+    background: #222;
+    color: #fff;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    overflow: hidden;
+  }
+  #gameCanvas {
+    display: block;
+    margin: auto;
+    background: #111;
+    border: 2px solid #888;
+  }
+  #ui {
+    position: absolute;
+    top: 10px; left: 10px;
+    z-index: 10;
+    font-size: 18px;
+  }
+  #buttons {
+    position: absolute;
+    bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+  }
+  button {
+    margin: 0 5px;
+    padding: 10px 15px;
+    font-size: 16px;
+  }
+</style>
 </head>
 <body>
   <div id="ui">
-    <div>HP: <span id="playerHp">100</span>%</div>
-    <div>Boss HP: <span id="bossHp">300</span></div>
-    <div>Weapon: <span id="weapon">Bow</span></div>
+    HP: <span id="playerHp">100</span> | Boss HP: <span id="bossHp">300</span> | Current Arrow: <span id="arrowType">Normal</span>
   </div>
-  <canvas id="game" width="400" height="600"></canvas>
-  <div id="controls">
-    <button id="moveLeft">◀</button>
-    <button id="moveRight">▶</button>
-    <button id="shoot">Shoot</button>
-    <button id="switchWeapon">Switch</button>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+  <div id="buttons">
+    <button id="btnLeft">Left</button>
+    <button id="btnRight">Right</button>
+    <button id="btnShoot">Shoot</button>
+    <button id="btnChangeArrow">Change Arrow</button>
   </div>
-  <script>
-    const canvas = document.getElementById("game");
-    const ctx = canvas.getContext("2d");
 
-    const player = {
-      x: 200,
-      y: 550,
-      size: 15,
-      color: "cyan",
-      hp: 100,
-      weapon: "bow",
-      speed: 10
-    };
-
-    const boss = {
-      x: 200,
-      y: 100,
-      size: 50,
-      hp: 300,
-      moveDir: 1,
-      moveSpeed: 1
-    };
-
-    let arrows = [];
-    let slimes = [];
-    let attacks = [];
-    let cooldown = 0;
-    // 슬라임(잡몹) 생성
-    function spawnSlimes() {
-      if (slimes.length < 5 && Math.random() < 0.02) {
-        slimes.push({
-          x: Math.random() * (canvas.width - 30) + 15,
-          y: Math.random() * 150 + 120,
-          size: 15,
-          hp: 20,
-          speed: 1 + Math.random(),
-          dir: Math.random() < 0.5 ? -1 : 1,
-          color: "lime"
-        });
-      }
-    }
-
-    // 플레이어 그리기
-    function drawPlayer() {
-      ctx.fillStyle = player.color;
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 무기 그리기 (활)
-      if (player.weapon === "bow") {
-        ctx.strokeStyle = "orange";
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(player.x, player.y);
-        ctx.lineTo(player.x, player.y - 25);
-        ctx.stroke();
-      }
-    }
-
-    // 보스 그리기 (무지개 슬라임)
-    function drawBoss() {
-      let gradient = ctx.createLinearGradient(boss.x - boss.size, boss.y, boss.x + boss.size, boss.y);
-      gradient.addColorStop(0, "red");
-      gradient.addColorStop(0.15, "orange");
-      gradient.addColorStop(0.3, "yellow");
-      gradient.addColorStop(0.5, "green");
-      gradient.addColorStop(0.65, "blue");
-      gradient.addColorStop(0.8, "indigo");
-      gradient.addColorStop(1, "violet");
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(boss.x, boss.y, boss.size, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // 슬라임 그리기
-    function drawSlimes() {
-      for (let s of slimes) {
-        ctx.fillStyle = s.color;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // 화살 그리기
-    function drawArrows() {
-      ctx.fillStyle = "orange";
-      for (let a of arrows) {
-        ctx.beginPath();
-        ctx.rect(a.x, a.y, 4, 10);
-        ctx.fill();
-      }
-    }
-
-    // 보스 공격 (공격 구체 생성)
-    function bossAttack() {
-      if (Math.random() < 0.03) {
-        attacks.push({
-          x: boss.x + (Math.random() - 0.5) * boss.size * 2,
-          y: boss.y + boss.size,
-          size: 15,
-          speed: 3 + Math.random() * 2,
-          color: "rgba(255,0,0,0.5)"
-        });
-      }
-    }
-
-    // 공격 구체 그리기
-    function drawAttacks() {
-      for (let atk of attacks) {
-        ctx.fillStyle = atk.color;
-        ctx.beginPath();
-        ctx.arc(atk.x, atk.y, atk.size, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // 플레이어 움직임 함수
-    function movePlayer(dir) {
-      player.x += dir * player.speed;
-      if (player.x < player.size) player.x = player.size;
-      if (player.x > canvas.width - player.size) player.x = canvas.width - player.size;
-    }
-
-    // 플레이어 화살 발사
-    function shootArrow() {
-      if (cooldown === 0) {
-        arrows.push({
-          x: player.x - 2,
-          y: player.y - player.size - 10,
-          speed: 7
-        });
-        cooldown = 15;
-      }
-    }
-
-    // 무기 전환 (칼 빼고 활만 요청받음, so 그냥 bow 하나만 유지)
-    function switchWeapon() {
-      // 단일 무기만 있으므로 별 변화 없음, UI만 유지
-      // 향후 칼 추가 시 확장 가능
-    }
-
-    // 게임 업데이트
-    function update() {
-      // 보스 이동 (좌우 왕복)
-      boss.x += boss.moveDir * boss.moveSpeed;
-      if (boss.x < boss.size) boss.moveDir = 1;
-      if (boss.x > canvas.width - boss.size) boss.moveDir = -1;
-
-      // 슬라임 이동
-      for (let s of slimes) {
-        s.x += s.speed * s.dir;
-        if (s.x < s.size || s.x > canvas.width - s.size) s.dir *= -1;
-      }
-
-      // 화살 이동 및 충돌 검사
-      arrows.forEach((a, i) => {
-        a.y -= a.speed;
-        // 화살이 화면 밖이면 제거
-        if (a.y < -10) {
-          arrows.splice(i, 1);
-          return;
-        }
-        // 보스 맞으면 데미지
-        const dx = a.x - boss.x;
-        const dy = a.y - boss.y;
-        if (Math.sqrt(dx * dx + dy * dy) < boss.size) {
-          boss.hp -= 5;
-          arrows.splice(i, 1);
-        }
-        // 잡몹 맞으면 데미지
-        for (let j = 0; j < slimes.length; j++) {
-          let s = slimes[j];
-          let dist = Math.sqrt((a.x - s.x) ** 2 + (a.y - s.y) ** 2);
-          if (dist < s.size) {
-            s.hp -= 10;
-            arrows.splice(i, 1);
-            if (s.hp <= 0) slimes.splice(j, 1);
-            break;
-          }
-        }
-      });
-
-      // 보스 공격 이동 및 플레이어 충돌
-      attacks.forEach((atk, i) => {
-        atk.y += atk.speed;
-        if (atk.y > canvas.height + atk.size) {
-          attacks.splice(i, 1);
-          return;
-        }
-        let dist = Math.sqrt((atk.x - player.x) ** 2 + (atk.y - player.y) ** 2);
-        if (dist < atk.size + player.size) {
-          player.hp -= 10;
-          attacks.splice(i, 1);
-        }
-      });
-
-      // 보스 공격 확률로 생성
-      bossAttack();
-
-      // 플레이어 hp, boss hp UI 업데이트
-      document.getElementById("playerHp").textContent = player.hp > 0 ? player.hp : 0;
-      document.getElementById("bossHp").textContent = boss.hp > 0 ? boss.hp : 0;
-
-      if (cooldown > 0) cooldown--;
-    }
-    // 화면 그리기
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      drawPlayer();
-      drawBoss();
-      drawSlimes();
-      drawArrows();
-      drawAttacks();
-    }
-
-    // 키 컨트롤 (모바일 버튼으로 대체 가능)
-    document.getElementById("moveLeft").addEventListener("click", () => {
-      movePlayer(-1);
-    });
-
-    document.getElementById("moveRight").addEventListener("click", () => {
-      movePlayer(1);
-    });
-
-    document.getElementById("shoot").addEventListener("click", () => {
-      shootArrow();
-    });
-
-    document.getElementById("switchWeapon").addEventListener("click", () => {
-      switchWeapon();
-    });
-
-    // 게임 루프
-    function gameLoop() {
-      update();
-      draw();
-
-      // 게임 오버 체크
-      if (player.hp <= 0) {
-        alert("Game Over!");
-        // 리로드 또는 초기화
-        location.reload();
-        return;
-      }
-      if (boss.hp <= 0) {
-        alert("Boss Defeated!");
-        // 리로드 또는 초기화
-        location.reload();
-        return;
-      }
-
-      requestAnimationFrame(gameLoop);
-    }
-
-    // 시작
-    gameLoop();
-  </script>
+  <script src="game.js"></script>
+  <script src="ai.js"></script>
 </body>
 </html>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const player = {
+  x: 200,
+  y: 550,
+  size: 20,
+  color: "cyan",
+  hp: 100,
+  speed: 5,
+  arrowTypes: ["Normal", "Fire", "Ice"],
+  currentArrowIndex: 0,
+};
+
+const boss = {
+  x: 200,
+  y: 100,
+  size: 60,
+  color: null, // gradient handled in drawBoss
+  hp: 300,
+  moveSpeed: 2,
+  attackTimer: 0,
+  isInvincible: false,
+};
+
+let slimes = [];
+let attacks = [];
+let arrows = [];
+
+function createSlimes(count = 5) {
+  for (let i = 0; i < count; i++) {
+    slimes.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * (canvas.height / 2),
+      size: 15,
+      color: "lime",
+      speed: 1 + Math.random() * 1.5,
+      hp: 30,
+      attackCooldown: 0,
+    });
+  }
+}
+
+function drawPlayer() {
+  ctx.fillStyle = player.color;
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw bow (simple line)
+  ctx.strokeStyle = "brown";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(player.x - 5, player.y);
+  ctx.lineTo(player.x + 15, player.y - 10);
+  ctx.stroke();
+}
+
+function drawBoss() {
+  // Rainbow gradient
+  const gradient = ctx.createLinearGradient(boss.x - boss.size, boss.y, boss.x + boss.size, boss.y);
+  gradient.addColorStop(0, "red");
+  gradient.addColorStop(0.15, "orange");
+  gradient.addColorStop(0.3, "yellow");
+  gradient.addColorStop(0.5, "green");
+  gradient.addColorStop(0.65, "blue");
+  gradient.addColorStop(0.8, "indigo");
+  gradient.addColorStop(1, "violet");
+  ctx.fillStyle = boss.isInvincible ? "gray" : gradient;
+
+  ctx.beginPath();
+  ctx.arc(boss.x, boss.y, boss.size, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Boss HP bar
+  ctx.fillStyle = "red";
+  ctx.fillRect(boss.x - 50, boss.y - boss.size - 20, 100 * (boss.hp / 300), 10);
+  ctx.strokeStyle = "white";
+  ctx.strokeRect(boss.x - 50, boss.y - boss.size - 20, 100, 10);
+}
+
+function drawSlimes() {
+  slimes.forEach(s => {
+    ctx.fillStyle = s.color;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawArrows() {
+  arrows.forEach(a => {
+    ctx.fillStyle = a.color;
+    ctx.beginPath();
+    ctx.rect(a.x - 2, a.y - 5, 4, 10);
+    ctx.fill();
+  });
+}
+
+function drawAttacks() {
+  attacks.forEach(atk => {
+    ctx.fillStyle = atk.color || "rgba(255,0,0,0.5)";
+    ctx.beginPath();
+    ctx.arc(atk.x, atk.y, atk.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function movePlayerLeft() {
+  player.x = Math.max(player.size, player.x - player.speed);
+}
+
+function movePlayerRight() {
+  player.x = Math.min(canvas.width - player.size, player.x + player.speed);
+}
+
+function shootArrow() {
+  const type = player.arrowTypes[player.currentArrowIndex];
+  let color = "white";
+  let speed = 10;
+  let damage = 10;
+
+  if (type === "Fire") {
+    color = "orange";
+    damage = 15;
+  } else if (type === "Ice") {
+    color = "skyblue";
+    damage = 8;
+  }
+
+  arrows.push({
+    x: player.x,
+    y: player.y - player.size,
+    size: 5,
+    speed: speed,
+    damage: damage,
+    color: color,
+    type: type,
+  });
+}
+
+function changeArrow() {
+  player.currentArrowIndex = (player.currentArrowIndex + 1) % player.arrowTypes.length;
+  document.getElementById("arrowType").textContent = player.arrowTypes[player.currentArrowIndex];
+}
+
+function updateArrows() {
+  arrows.forEach((a, i) => {
+    a.y -= a.speed;
+    if (a.y < -10) arrows.splice(i, 1);
+
+    // Check collision with boss
+    let dx = a.x - boss.x;
+    let dy = a.y - boss.y;
+    let dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < boss.size + a.size && boss.hp > 0 && !boss.isInvincible) {
+      boss.hp -= a.damage;
+      arrows.splice(i, 1);
+    }
+
+    // Check collision with slimes
+    slimes.forEach((s, si) => {
+      let dxs = a.x - s.x;
+      let dys = a.y - s.y;
+      let distS = Math.sqrt(dxs*dxs + dys*dys);
+      if (distS < s.size + a.size) {
+        s.hp -= a.damage;
+        arrows.splice(i, 1);
+        if (s.hp <= 0) slimes.splice(si, 1);
+      }
+    });
+  });
+}
+
+function update() {
+  updateArrows();
+
+  // AI 업데이트는 ai.js에서 처리
+  updateSlimes();
+  updateBossMovement();
+  updateBossAttack();
+
+  // 게임 오버 체크
+  if (player.hp <= 0) {
+    alert("Game Over!");
+    window.location.reload();
+  }
+  if (boss.hp <= 0) {
+    alert("You Win!");
+    window.location.reload();
+  }
+}
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawPlayer();
+  drawBoss();
+  drawSlimes();
+  drawArrows();
+  drawAttacks();
+
+  // 플레이어 HP UI
+  document.getElementById("playerHp").textContent = player.hp;
+  document.getElementById("bossHp").textContent = boss.hp;
+}
+
+function gameLoop() {
+  update();
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+createSlimes(7);
+
+document.getElementById("btnLeft").onclick = movePlayerLeft;
+document.getElementById("btnRight").onclick = movePlayerRight;
+document.getElementById("btnShoot").onclick = shootArrow;
+document.getElementById("btnChangeArrow").onclick = changeArrow;
+
+gameLoop();
+function updateSlimes() {
+  slimes.forEach((s) => {
+    // 플레이어 방향으로 이동
+    let dx = player.x - s.x;
+    let dy = player.y - s.y;
+    let dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist > s.size + player.size + 10) {
+      s.x += (dx / dist) * s.speed;
+      s.y += (dy / dist) * s.speed;
+    } else {
+      // 근접 공격 시도
+      if (!s.attackCooldown || s.attackCooldown <= 0) {
+        player.hp -= 5;
+        s.attackCooldown = 60;
+      }
+    }
+    if (s.attackCooldown > 0) s.attackCooldown--;
+  });
+}
+
+function updateBossMovement() {
+  // 보스는 좌우로 천천히 움직임 (무작위 방향)
+  if (!boss.moveDir) boss.moveDir = 1;
+  boss.x += boss.moveSpeed * boss.moveDir;
+  if (boss.x > canvas.width - boss.size) boss.moveDir = -1;
+  if (boss.x < boss.size) boss.moveDir = 1;
+}
+
+function updateBossAttack() {
+  boss.attackTimer++;
+  if (boss.attackTimer > 120) {
+    boss.attackTimer = 0;
+    // 공격 패턴 생성 (간단히 공격 범위 생성)
+    attacks.push({
+      x: boss.x,
+      y: boss.y + boss.size + 20,
+      size: 30,
+      color: "rgba(255, 0, 0, 0.5)",
+      timer: 60,
+    });
+  }
+
+  attacks.forEach((atk, i) => {
+    atk.timer--;
+    if (atk.timer <= 0) attacks.splice(i, 1);
+
+    // 플레이어가 공격 범위 안에 있으면 피해
+    let dx = player.x - atk.x;
+    let dy = player.y - atk.y;
+    let dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < atk.size + player.size) {
+      player.hp -= 1;
+    }
+  });
+}
