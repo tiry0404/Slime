@@ -1,0 +1,124 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>무지개 슬라임 보스 게임</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: black;
+      color: white;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    canvas {
+      background: #222;
+      touch-action: none;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      width: 100%;
+      font-size: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">무지개 슬라임 보스 HP: <span id="bossHp">100</span>%</div>
+  <canvas id="gameCanvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let player = { x: canvas.width / 2, y: canvas.height - 100, size: 40 };
+    let boss = { x: canvas.width / 2, y: 100, size: 100, hp: 100, color: "hsl(0, 100%, 50%)", hue: 0 };
+    let gameOver = false;
+
+    function drawPlayer() {
+      ctx.fillStyle = "white";
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawBoss() {
+      boss.hue += 1;
+      boss.color = "hsl(" + boss.hue + ", 100%, 50%)";
+      ctx.fillStyle = boss.color;
+      ctx.beginPath();
+      ctx.arc(boss.x, boss.y, boss.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    let attacks = [];
+    function spawnAttack() {
+      if (gameOver) return;
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * 100 + 50;
+      attacks.push({
+        x: boss.x + Math.cos(angle) * dist,
+        y: boss.y + Math.sin(angle) * dist,
+        vx: (Math.random() - 0.5) * 6,
+        vy: (Math.random() - 0.5) * 6,
+        size: 20
+      });
+    }
+
+    function drawAttacks() {
+      ctx.fillStyle = "red";
+      for (let atk of attacks) {
+        atk.x += atk.vx;
+        atk.y += atk.vy;
+        ctx.beginPath();
+        ctx.arc(atk.x, atk.y, atk.size, 0, Math.PI * 2);
+        ctx.fill();
+
+        let dx = atk.x - player.x;
+        let dy = atk.y - player.y;
+        if (Math.sqrt(dx * dx + dy * dy) < atk.size + player.size) {
+          gameOver = true;
+        }
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawPlayer();
+      drawBoss();
+      drawAttacks();
+
+      if (!gameOver && boss.hp > 0) {
+        requestAnimationFrame(draw);
+      } else {
+        ctx.fillStyle = "white";
+        ctx.font = "48px sans-serif";
+        ctx.fillText(boss.hp <= 0 ? "승리!" : "패배!", canvas.width / 2 - 60, canvas.height / 2);
+      }
+    }
+
+    function update() {
+      if (gameOver || boss.hp <= 0) return;
+      boss.hp -= 0.05;
+      document.getElementById("bossHp").innerText = Math.max(0, Math.floor(boss.hp));
+    }
+
+    canvas.addEventListener("touchstart", (e) => {
+      const touchX = e.touches[0].clientX;
+      if (touchX < canvas.width / 2) {
+        player.x -= 50;
+      } else {
+        player.x += 50;
+      }
+    });
+
+    setInterval(spawnAttack, 1000);
+    setInterval(update, 100);
+    draw();
+  </script>
+</body>
+</html>
