@@ -1,0 +1,163 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Slime Boss Game</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: #222; color: #fff; font-family: sans-serif; overflow: hidden; }
+    canvas { display: block; margin: auto; background: #111; border: 2px solid #888; }
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      font-size: 18px;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div>HP: <span id="playerHp">100</span>%</div>
+    <div>Boss HP: <span id="bossHp">300</span></div>
+    <div>Weapon: <span id="weapon">None</span></div>
+  </div>
+  <canvas id="game" width="400" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const player = {
+      x: 200,
+      y: 550,
+      size: 20,
+      color: "cyan",
+      hp: 100,
+      speed: 4,
+      weapon: "sword"
+    };
+
+    const boss = {
+      x: 200,
+      y: 100,
+      size: 60,
+      hp: 300,
+      attackCooldown: 0
+    };
+
+    let attacks = [];
+    let keys = {};
+
+    document.addEventListener("keydown", (e) => keys[e.key] = true);
+    document.addEventListener("keyup", (e) => keys[e.key] = false);
+
+    function drawPlayer() {
+      ctx.fillStyle = player.color;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawBoss() {
+      const gradient = ctx.createLinearGradient(boss.x - boss.size, boss.y, boss.x + boss.size, boss.y);
+      gradient.addColorStop(0, "red");
+      gradient.addColorStop(0.15, "orange");
+      gradient.addColorStop(0.3, "yellow");
+      gradient.addColorStop(0.5, "green");
+      gradient.addColorStop(0.65, "blue");
+      gradient.addColorStop(0.8, "indigo");
+      gradient.addColorStop(1, "violet");
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(boss.x, boss.y, boss.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawAttacks() {
+      ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+      for (let atk of attacks) {
+        ctx.beginPath();
+        ctx.arc(atk.x, atk.y, atk.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function update() {
+      // Movement
+      if (keys["ArrowLeft"] || keys["a"]) player.x -= player.speed;
+      if (keys["ArrowRight"] || keys["d"]) player.x += player.speed;
+      if (keys["ArrowUp"] || keys["w"]) player.y -= player.speed;
+      if (keys["ArrowDown"] || keys["s"]) player.y += player.speed;
+
+      // Clamp player
+      player.x = Math.max(player.size, Math.min(canvas.width - player.size, player.x));
+      player.y = Math.max(player.size, Math.min(canvas.height - player.size, player.y));
+
+      // Boss attack
+      if (boss.attackCooldown <= 0) {
+        bossAttack();
+        boss.attackCooldown = 90;
+      } else {
+        boss.attackCooldown--;
+      }
+
+      // Update attacks
+      attacks.forEach(atk => atk.y += atk.speed);
+      attacks = attacks.filter(atk => atk.y < canvas.height);
+
+      for (let atk of attacks) {
+        const dx = atk.x - player.x;
+        const dy = atk.y - player.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < atk.size + player.size) {
+          player.hp -= 5;
+          atk.y = canvas.height + 1;
+        }
+      }
+
+      // Update UI
+      document.getElementById("playerHp").textContent = player.hp;
+      document.getElementById("bossHp").textContent = boss.hp;
+      document.getElementById("weapon").textContent = player.weapon;
+    }
+
+    function bossAttack() {
+      let count = Math.floor(Math.random() * 5 + 3);
+      for (let i = 0; i < count; i++) {
+        attacks.push({
+          x: Math.random() * canvas.width,
+          y: boss.y + boss.size,
+          size: 15,
+          speed: 3 + Math.random() * 2
+        });
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawPlayer();
+      drawBoss();
+      drawAttacks();
+    }
+
+    function gameLoop() {
+      update();
+      draw();
+      if (player.hp > 0 && boss.hp > 0) {
+        requestAnimationFrame(gameLoop);
+      } else {
+        ctx.fillStyle = "white";
+        ctx.font = "30px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(player.hp > 0 ? "YOU WIN!" : "GAME OVER", canvas.width / 2, canvas.height / 2);
+      }
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>
