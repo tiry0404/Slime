@@ -1,103 +1,111 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bow Slime Game</title>
+  <title>Rainbow Slime Battle</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #222; color: white; font-family: sans-serif; overflow: hidden; }
-    canvas { display: block; margin: auto; background: #111; border: 2px solid #555; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #222;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      margin: auto;
+      background: #111;
+      border: 2px solid #888;
+    }
     #ui {
       position: absolute;
       top: 10px;
       left: 10px;
       color: white;
+      font-size: 16px;
       z-index: 10;
-      font-size: 18px;
     }
     #controls {
       position: absolute;
-      bottom: 20px;
+      bottom: 10px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
       gap: 10px;
-      z-index: 10;
     }
     button {
-      padding: 10px 20px;
       font-size: 16px;
-      border: none;
-      border-radius: 5px;
-      background: #444;
-      color: white;
+      padding: 10px;
     }
   </style>
 </head>
 <body>
   <div id="ui">
-    <div>HP: <span id="playerHp">100</span>%</div>
+    <div>Player HP: <span id="playerHp">100</span>%</div>
+    <div>Boss HP: <span id="bossHp">300</span></div>
     <div>Weapon: <span id="weaponType">Bow</span></div>
   </div>
   <div id="controls">
-    <button onclick="moveLeft()">←</button>
-    <button onclick="shootArrow()">Shoot</button>
-    <button onclick="moveRight()">→</button>
+    <button onclick="moveLeft()">Left</button>
+    <button onclick="shoot()">Shoot</button>
+    <button onclick="moveRight()">Right</button>
+    <button onclick="switchWeapon()">Switch</button>
   </div>
   <canvas id="game" width="400" height="600"></canvas>
 
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
+    const playerHpEl = document.getElementById("playerHp");
+    const bossHpEl = document.getElementById("bossHp");
+    const weaponTypeEl = document.getElementById("weaponType");
 
     const player = {
       x: 200,
       y: 550,
-      size: 20,
-      color: "cyan",
+      size: 15,
       hp: 100,
-      speed: 15
+      weapon: "bow"
     };
 
-    const arrows = [];
-    let bossDirection = 1;
-const boss = {
+    const boss = {
       x: 200,
       y: 100,
-      size: 60,
+      size: 40,
       hp: 300,
-      color: "rainbow"
+      direction: 1
     };
 
+    let projectiles = [];
+    let attacks = [];
+
     function drawPlayer() {
-      ctx.fillStyle = player.color;
+      ctx.fillStyle = "cyan";
       ctx.beginPath();
       ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
       ctx.fill();
 
-      // Draw bow
-      ctx.strokeStyle = "gold";
-      ctx.beginPath();
-      ctx.moveTo(player.x - 10, player.y - 20);
-      ctx.lineTo(player.x - 10, player.y + 20);
-      ctx.stroke();
+      // Draw weapon
+      ctx.fillStyle = "white";
+      if (player.weapon === "bow") {
+        ctx.fillRect(player.x - 5, player.y - 25, 10, 10); // arrow
+      } else {
+        ctx.fillRect(player.x - 2, player.y - 30, 4, 15); // sword
+      }
     }
 
     function drawBoss() {
-  // Draw boss HP
-  ctx.fillStyle = "white";
-  ctx.font = "14px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText("Boss HP: " + boss.hp, boss.x, boss.y - boss.size - 10);
       const gradient = ctx.createLinearGradient(boss.x - boss.size, boss.y, boss.x + boss.size, boss.y);
       gradient.addColorStop(0, "red");
-      gradient.addColorStop(0.15, "orange");
-      gradient.addColorStop(0.3, "yellow");
-      gradient.addColorStop(0.5, "green");
-      gradient.addColorStop(0.65, "blue");
-      gradient.addColorStop(0.8, "indigo");
+      gradient.addColorStop(0.2, "orange");
+      gradient.addColorStop(0.4, "yellow");
+      gradient.addColorStop(0.6, "green");
+      gradient.addColorStop(0.8, "blue");
       gradient.addColorStop(1, "violet");
       ctx.fillStyle = gradient;
       ctx.beginPath();
@@ -105,90 +113,101 @@ const boss = {
       ctx.fill();
     }
 
-    function drawArrows() {
-      ctx.fillStyle = "white";
-      for (let arrow of arrows) {
-        ctx.fillRect(arrow.x - 2, arrow.y, 4, 10);
+    function drawProjectiles() {
+      ctx.fillStyle = "lime";
+      for (const p of projectiles) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
 
-    function updateArrows() {
-      for (let arrow of arrows) arrow.y -= arrow.speed;
-      for (let arrow of arrows) {
-        const dx = arrow.x - boss.x;
-        const dy = arrow.y - boss.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < boss.size) {
-          boss.hp -= 10;
-          arrow.hit = true;
-        }
+    function drawAttacks() {
+      ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+      for (const atk of attacks) {
+        ctx.beginPath();
+        ctx.arc(atk.x, atk.y, atk.size, 0, Math.PI * 2);
+        ctx.fill();
       }
-      arrows.splice(0, arrows.length, ...arrows.filter(a => !a.hit && a.y > 0));
-    }
-
-    function shootArrow() {
-      arrows.push({ x: player.x, y: player.y - 20, speed: 8 });
-    }
-
-    function moveLeft() {
-      player.x -= player.speed;
-    }
-
-    function moveRight() {
-      player.x += player.speed;
-    }
-
-    function updateUI() {
-      slimes.forEach(slime => {
-    slime.x += slime.dx;
-    if (slime.x < slime.size || slime.x > canvas.width - slime.size) {
-      slime.dx *= -1;
-    }
-  });
-
-  document.getElementById("playerHp").textContent = player.hp;
-      document.getElementById("weaponType").textContent = "Bow";
     }
 
     function update() {
-  // Boss movement
-  boss.x += bossDirection * 2;
-  if (boss.x < boss.size || boss.x > canvas.width - boss.size) {
-    bossDirection *= -1;
-  }
-      updateArrows();
-      updateUI();
+      projectiles.forEach(p => p.y -= 5);
+      projectiles = projectiles.filter(p => p.y > 0);
+
+      attacks.forEach(a => a.y += 3);
+      attacks = attacks.filter(a => a.y < canvas.height);
+
+      for (const atk of attacks) {
+        const dx = atk.x - player.x;
+        const dy = atk.y - player.y;
+        if (Math.sqrt(dx * dx + dy * dy) < atk.size + player.size) {
+          player.hp -= 5;
+          atk.y = canvas.height + 1;
+        }
+      }
+
+      for (const p of projectiles) {
+        const dx = p.x - boss.x;
+        const dy = p.y - boss.y;
+        if (Math.sqrt(dx * dx + dy * dy) < boss.size) {
+          boss.hp -= player.weapon === "bow" ? 5 : 10;
+          p.y = -10;
+        }
+      }
+
+      boss.x += boss.direction * 1;
+      if (boss.x < boss.size || boss.x > canvas.width - boss.size) boss.direction *= -1;
+
+      if (Math.random() < 0.03) {
+        attacks.push({ x: boss.x, y: boss.y + boss.size, size: 12 });
+      }
+
+      playerHpEl.textContent = player.hp;
+      bossHpEl.textContent = boss.hp;
     }
 
     function render() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawPlayer();
       drawBoss();
-  drawSlimes();
-      drawArrows();
+      drawProjectiles();
+      drawAttacks();
     }
 
     function gameLoop() {
       update();
       render();
-      requestAnimationFrame(gameLoop);
+      if (player.hp > 0 && boss.hp > 0) {
+        requestAnimationFrame(gameLoop);
+      } else {
+        ctx.fillStyle = "white";
+        ctx.font = "30px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(player.hp > 0 ? "YOU WIN!" : "GAME OVER", canvas.width / 2, canvas.height / 2);
+      }
+    }
+
+    function shoot() {
+      if (player.weapon === "bow") {
+        projectiles.push({ x: player.x, y: player.y });
+      }
+    }
+
+    function switchWeapon() {
+      player.weapon = player.weapon === "bow" ? "sword" : "bow";
+      weaponTypeEl.textContent = player.weapon.charAt(0).toUpperCase() + player.weapon.slice(1);
+    }
+
+    function moveLeft() {
+      player.x = Math.max(player.x - 20, player.size);
+    }
+
+    function moveRight() {
+      player.x = Math.min(player.x + 20, canvas.width - player.size);
     }
 
     gameLoop();
   </script>
 </body>
 </html>
-
-function drawSlimes() {
-  for (let slime of slimes) {
-    ctx.fillStyle = slime.color;
-    ctx.beginPath();
-    ctx.arc(slime.x, slime.y, slime.size, 0, Math.PI * 2);
-    ctx.fill();
-    // Draw HP
-    ctx.fillStyle = "white";
-    ctx.font = "12px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("HP: " + slime.hp, slime.x, slime.y - slime.size - 5);
-  }
-}
