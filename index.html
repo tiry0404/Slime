@@ -197,6 +197,472 @@
     }, 16);
 
     gameLoop();
+  <!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Slime Game - Step 3</title>
+  <style>
+    body {
+      margin: 0; 
+      overflow: hidden; 
+      background: #222;
+      color: white;
+      font-family: Arial, sans-serif;
+      user-select: none;
+    }
+    #game {
+      background: #111;
+      display: block;
+      margin: 0 auto;
+      border: 2px solid #666;
+      touch-action: none;
+    }
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 100;
+      font-size: 16px;
+    }
+    button {
+      margin: 5px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="ui">
+    <div>플레이어 HP: <span id="playerHp">100</span></div>
+    <div>보스 HP: <span id="bossHp">-</span></div>
+    <div>현재 화살: <span id="currentArrow">일반 화살</span></div>
+    <button id="fireBtn">발사</button>
+    <button id="changeArrowBtn">화살 교체</button>
+    <button id="spawnBossBtn">보스 소환</button>
+  </div>
+  
+  <canvas id="game" width="400" height="600"></canvas>
+  
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    // 플레이어 객체
+    const player = {
+      x: canvas.width / 2,
+      y: canvas.height - 50,
+      size: 20,
+      speed: 5,
+      hp: 100,
+      color: 'cyan',
+    };
+
+    // 키 입력 상태 저장
+    const keys = {
+      left: false,
+      right: false,
+      up: false,
+      down: false
+    };
+
+    // 화살 종류 및 속성
+    const arrowTypes = [
+      { name: '일반 화살', color: 'white', damage: 10, speed: 8 },
+      { name: '불 화살', color: 'orange', damage: 15, speed: 7, burnChance: 0.5 },
+      { name: '빙 화살', color: 'skyblue', damage: 12, speed: 6, freezeChance: 0.1 },
+      { name: '고대병기', color: 'purple', damage: 50, speed: 10, instantKill: true },
+    ];
+    let currentArrowIndex = 0;
+
+    // 발사된 화살 배열
+    const arrows = [];
+
+    // 잡몹 종류
+    const slimeTypes = [
+      { name: '빨강 슬라임', color: 'red', hp: 30, speed: 1.5, damage: 10 },
+      { name: '파랑 슬라임', color: 'blue', hp: 40, speed: 1, damage: 8 },
+      { name: '보라 슬라임', color: 'purple', hp: 25, speed: 2, damage: 12 },
+    ];
+
+    // 잡몹 배열
+    const slimes = [];
+
+    // 보스 객체 (초기엔 null)
+    let boss = null;
+
+    // 잡몹 생성 간격 및 시간
+    let slimeSpawnInterval = 1500;
+    let lastSlimeSpawn = 0;
+
+    // 보스 공격 패턴 타이머
+    let lastBossAttack = 0;
+    const bossAttackInterval = 3000; // 3초마다 공격
+
+    // 화살 발사 함수
+    function fireArrow() {
+      const arrow = {
+        x: player.x,
+        y: player.y - player.size,
+        size: 5,
+        speed: arrowTypes[currentArrowIndex].speed,
+        color: arrowTypes[currentArrowIndex].color,
+        damage: arrowTypes[currentArrowIndex].damage,
+        type: arrowTypes[currentArrowIndex]
+      };
+      arrows.push(arrow);
+    }
+
+    // 플레이어 이동 함수
+    function movePlayer() {
+      if (keys.left && player.x - player.size > 0) player.x -= player.speed;
+      if (keys.right && player.x + player.size < canvas.width) player.x += player.speed;
+      if (keys.up && player.y - player.size > 0) player.y -= player.speed;
+      if (keys.down && player.y + player.size < canvas.height) player.y += player.speed;
+    }
+
+    // 키보드 이벤트 처리
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'ArrowLeft') keys.left = true;
+      if (e.code === 'ArrowRight') keys.right = true;
+      if (e.code === 'ArrowUp') keys.up = true;
+      if (e.code === 'ArrowDown') keys.down = true;
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'ArrowLeft') keys.left = false;
+      if (e.code === 'ArrowRight') keys.right = false;
+      if (e.code === 'ArrowUp') keys.up = false;
+      if (e.code === 'ArrowDown') keys.down = false;
+    });
+
+    // 마우스/터치로 플레이어 위치 이동 (모바일 대응)
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      player.x = touch.clientX - rect.left;
+      player.y = touch.clientY - rect.top;
+      if (player.x < player.size) player.x = player.size;
+      if (player.x > canvas.width - player.size) player.x = canvas.width - player.size;
+      if (player.y < player.size) player.y = player.size;
+      if (player.y > canvas.height - player.size) player.y = canvas.height - player.size;
+    }, { passive: false });
+
+    // 화살 교체 버튼
+    const changeArrowBtn = document.getElementById('changeArrowBtn');
+    const currentArrowSpan = document.getElementById('currentArrow');
+    changeArrowBtn.onclick = () => {
+      currentArrowIndex = (currentArrowIndex + 1) % arrowTypes.length;
+      currentArrowSpan.textContent = arrowTypes[currentArrowIndex].name;
+    };
+
+    // 발사 버튼
+    const fireBtn = document.getElementById('fireBtn');
+    fireBtn.onclick = () => {
+      fireArrow();
+    };
+
+    // 보스 소환 버튼
+    const spawnBossBtn = document.getElementById('spawnBossBtn');
+    spawnBossBtn.onclick = () => {
+      if (!boss) {
+        boss = {
+          x: canvas.width / 2,
+          y: 100,
+          size: 50,
+          hp: 500,
+          maxHp: 500,
+          color: 'darkgreen',
+          speed: 1,
+          direction: 1, // 좌우 방향(1:오른쪽, -1:왼쪽)
+          damage: 20,
+          attackCooldown: 0,
+        };
+      }
+    };
+
+    // 슬라임 생성 함수
+    function spawnSlime() {
+      const type = slimeTypes[Math.floor(Math.random() * slimeTypes.length)];
+      const slime = {
+        x: Math.random() * (canvas.width - 40) + 20,
+        y: -20,
+        size: 20,
+        hp: type.hp,
+        speed: type.speed,
+        damage: type.damage,
+        color: type.color,
+      };
+      slimes.push(slime);
+    }
+
+    // 충돌 체크 (원 대 원)
+    function checkCollision(a, b) {
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      return dist < a.size + b.size;
+    }
+
+    // 화살 업데이트 및 충돌 처리
+    function updateArrows() {
+      for (let i = arrows.length -1; i >=0; i--) {
+        const arrow = arrows[i];
+        arrow.y -= arrow.speed;
+
+        // 화면 밖 나가면 제거
+        if (arrow.y + arrow.size < 0) {
+          arrows.splice(i,1);
+          continue;
+        }
+
+        // 슬라임과 충돌 검사
+        for (let j = slimes.length -1; j >=0; j--) {
+          const slime = slimes[j];
+          if (checkCollision(arrow, slime)) {
+            slime.hp -= arrow.damage;
+
+            // 고대병기 즉사 처리
+            if (arrow.type.instantKill) {
+              slime.hp = 0;
+            }
+
+            if (slime.hp <= 0) {
+              slimes.splice(j,1);
+            }
+
+            arrows.splice(i,1);
+            break;
+          }
+        }
+
+        // 보스와 충돌 검사
+        if (boss && checkCollision(arrow, boss)) {
+          boss.hp -= arrow.damage;
+
+          if (arrow.type.instantKill) {
+            boss.hp -= 25; // 고대병기 보스에 추가 데미지
+
+            if (boss.hp < 0) boss.hp = 0;
+          }
+
+          if (boss.hp <= 0) {
+            boss = null; // 보스 처치
+            document.getElementById('bossHp').textContent = '-';
+          }
+
+          arrows.splice(i,1);
+          continue;
+        }
+      }
+    }
+
+    // 슬라임 업데이트 및 플레이어와 충돌 처리
+    function updateSlimes() {
+      for (let i = slimes.length -1; i >= 0; i--) {
+        const slime = slimes[i];
+        slime.y += slime.speed;
+
+        // 플레이어와 충돌 시 피해 주기
+        if (checkCollision(slime, player)) {
+          player.hp -= slime.damage;
+          slimes.splice(i,1);
+          if (player.hp < 0) player.hp = 0;
+          continue;
+        }
+
+        // 화면 아래로 나가면 제거
+        if (slime.y - slime.size > canvas.height) {
+          slimes.splice(i,1);
+        }
+      }
+    }
+
+    // 보스 업데이트 및 공격 패턴
+    function updateBoss(deltaTime) {
+      if (!boss) return;
+
+      // 좌우 왕복 이동
+      boss.x += boss.speed * boss.direction;
+      if (boss.x + boss.size > canvas.width) {
+        boss.direction = -1;
+      }
+      if (boss.x - boss.size < 0) {
+        boss.direction = 1;
+      }
+
+      // 플레이어와 충돌 시 피해
+      if (checkCollision(boss, player)) {
+        player.hp -= boss.damage;
+        // 강제로 밀어내기 효과 (optional)
+        if (player.x < boss.x) player.x -= 20;
+        else player.x += 20;
+        if (player.hp < 0) player.hp = 0;
+      }
+
+      // 공격 쿨다운 감소
+      boss.attackCooldown -= deltaTime;
+      if (boss.attackCooldown <= 0) {
+        bossAttack();
+        boss.attackCooldown = bossAttackInterval;
+      }
+    }
+
+    // 보스 공격 (범위 공격 예시)
+    function bossAttack() {
+      // 보스 주변에 여러 작은 화살들을 동시에 발사
+      const arrowCount = 8;
+      for (let i = 0; i < arrowCount; i++) {
+        const angle = (Math.PI * 2 / arrowCount) * i;
+        const speedX = Math.cos(angle) * 4;
+        const speedY = Math.sin(angle) * 4;
+        arrows.push({
+          x: boss.x,
+          y: boss.y,
+          size: 6,
+          speedX: speedX,
+          speedY: speedY,
+          color: 'lime',
+          damage: 15,
+          type: { name: '보스 화살', instantKill: false }
+        });
+      }
+    }
+
+    // 보스 화살 업데이트 (보스 화살은 speedX, speedY 가 있음)
+    function updateBossArrows() {
+      for (let i = arrows.length -1; i >= 0; i--) {
+        const arrow = arrows[i];
+        if (arrow.speedX !== undefined && arrow.speedY !== undefined) {
+          arrow.x += arrow.speedX;
+          arrow.y += arrow.speedY;
+
+          // 화면 밖이면 제거
+          if (
+            arrow.x < 0 || arrow.x > canvas.width ||
+            arrow.y < 0 || arrow.y > canvas.height
+          ) {
+            arrows.splice(i,1);
+            continue;
+          }
+
+          // 플레이어와 충돌 검사
+          if (checkCollision(arrow, player)) {
+            player.hp -= arrow.damage;
+            arrows.splice(i,1);
+            if (player.hp < 0) player.hp = 0;
+          }
+        }
+      }
+    }
+
+    // 그리기 함수들
+    function drawPlayer() {
+      ctx.fillStyle = player.color;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawArrows() {
+      arrows.forEach(a => {
+        ctx.fillStyle = a.color;
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, a.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function drawSlimes() {
+      slimes.forEach(s => {
+        ctx.fillStyle = s.color;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fill();
+
+        // HP 바
+        const hpWidth = s.size * 2;
+        const hpHeight = 4;
+        ctx.fillStyle = 'lime';
+        const baseHp = slimeTypes.find(t => t.color === s.color).hp;
+        const hpRatio = s.hp / baseHp;
+        ctx.fillRect(s.x - s.size, s.y - s.size - 10, hpWidth * hpRatio, hpHeight);
+      });
+    }
+
+    function drawBoss() {
+      if (!boss) return;
+      ctx.fillStyle = boss.color;
+      ctx.beginPath();
+      ctx.arc(boss.x, boss.y, boss.size, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 보스 HP 바
+      const hpWidth = boss.size * 2;
+      const hpHeight = 8;
+      ctx.fillStyle = 'red';
+      ctx.fillRect(boss.x - boss.size, boss.y - boss.size - 20, hpWidth, hpHeight);
+      ctx.fillStyle = 'lime';
+      const hpRatio = boss.hp / boss.maxHp;
+      ctx.fillRect(boss.x - boss.size, boss.y - boss.size - 20, hpWidth * hpRatio, hpHeight);
+    }
+
+    // UI 업데이트
+    function updateUI() {
+      document.getElementById('playerHp').textContent = player.hp;
+      document.getElementById('bossHp').textContent = boss ? boss.hp : '-';
+    }
+
+    // 메인 게임 루프
+    let lastTime = 0;
+    function gameLoop(time=0) {
+      const deltaTime = time - lastTime;
+      lastTime = time;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      movePlayer();
+
+      // 슬라임 생성
+      if (time - lastSlimeSpawn > slimeSpawnInterval && !boss) {
+        spawnSlime();
+        lastSlimeSpawn = time;
+      }
+
+      updateArrows();
+      updateBossArrows();
+      updateSlimes();
+      updateBoss(deltaTime);
+
+      drawPlayer();
+      drawArrows();
+      drawSlimes();
+      drawBoss();
+
+      updateUI();
+
+      // 게임 오버 체크
+      if (player.hp <= 0) {
+        ctx.fillStyle = 'red';
+        ctx.font = '48px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('게임 오버', canvas.width/2, canvas.height/2);
+        return;
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 시작 UI 세팅
+    currentArrowSpan.textContent = arrowTypes[currentArrowIndex].name;
+
+    // 초기 게임 루프 시작
+    gameLoop();
   </script>
+
 </body>
 </html>
