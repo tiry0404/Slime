@@ -1,38 +1,27 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bow Slime Game</title>
+  <title>Rainbow Slime Boss Game</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #222; color: white; font-family: sans-serif; overflow: hidden; }
-    canvas { display: block; margin: auto; background: #111; border: 2px solid #555; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #111; color: #fff; font-family: sans-serif; overflow: hidden; }
+    canvas { display: block; margin: auto; background: #222; border: 2px solid #555; }
     #ui {
       position: absolute;
       top: 10px;
       left: 10px;
       color: white;
-      z-index: 10;
-      font-size: 18px;
-    }
-    #controls {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 10px;
+      font-size: 16px;
       z-index: 10;
     }
     button {
-      padding: 10px 20px;
-      font-size: 16px;
-      border: none;
-      border-radius: 5px;
-      background: #444;
+      margin-top: 5px;
+      padding: 4px 8px;
+      background: #333;
       color: white;
+      border: 1px solid #777;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -40,155 +29,174 @@
   <div id="ui">
     <div>HP: <span id="playerHp">100</span>%</div>
     <div>Weapon: <span id="weaponType">Bow</span></div>
+    <button onclick="switchWeapon()">Switch Weapon</button>
   </div>
-  <div id="controls">
-    <button onclick="moveLeft()">←</button>
-    <button onclick="shootArrow()">Shoot</button>
-    <button onclick="moveRight()">→</button>
-  </div>
-  <canvas id="game" width="400" height="600"></canvas>
+  <canvas id="game" width="500" height="700"></canvas>
 
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
 
     const player = {
-      x: 200,
-      y: 550,
+      x: canvas.width / 2,
+      y: canvas.height - 50,
       size: 20,
       color: "cyan",
       hp: 100,
-      speed: 15
+      weapon: "bow"
     };
 
     const arrows = [];
-    let bossDirection = 1;
-const boss = {
-      x: 200,
+    const enemies = [];
+    const boss = {
+      x: canvas.width / 2,
       y: 100,
-      size: 60,
+      size: 50,
       hp: 300,
-      color: "rainbow"
+      color: "rainbow",
+      dx: 2,
+      dy: 0
     };
+
+    let keys = {};
+    let arrowCooldown = 0;
+
+    function switchWeapon() {
+      player.weapon = player.weapon === "bow" ? "sword" : "bow";
+      document.getElementById("weaponType").textContent = player.weapon === "bow" ? "Bow" : "Sword";
+    }
+
+    function spawnEnemy() {
+      enemies.push({
+        x: Math.random() * (canvas.width - 30) + 15,
+        y: -30,
+        size: 15,
+        hp: 20,
+        dy: 1 + Math.random()
+      });
+    }
 
     function drawPlayer() {
       ctx.fillStyle = player.color;
       ctx.beginPath();
       ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
       ctx.fill();
-
-      // Draw bow
-      ctx.strokeStyle = "gold";
-      ctx.beginPath();
-      ctx.moveTo(player.x - 10, player.y - 20);
-      ctx.lineTo(player.x - 10, player.y + 20);
-      ctx.stroke();
+      if (player.weapon === "sword") {
+        ctx.fillStyle = "silver";
+        ctx.fillRect(player.x + 15, player.y - 5, 20, 10);
+      }
     }
 
     function drawBoss() {
-  // Draw boss HP
-  ctx.fillStyle = "white";
-  ctx.font = "14px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText("Boss HP: " + boss.hp, boss.x, boss.y - boss.size - 10);
-      const gradient = ctx.createLinearGradient(boss.x - boss.size, boss.y, boss.x + boss.size, boss.y);
-      gradient.addColorStop(0, "red");
-      gradient.addColorStop(0.15, "orange");
-      gradient.addColorStop(0.3, "yellow");
-      gradient.addColorStop(0.5, "green");
-      gradient.addColorStop(0.65, "blue");
-      gradient.addColorStop(0.8, "indigo");
-      gradient.addColorStop(1, "violet");
-      ctx.fillStyle = gradient;
+      const g = ctx.createLinearGradient(boss.x - boss.size, boss.y, boss.x + boss.size, boss.y);
+      g.addColorStop(0, "red");
+      g.addColorStop(0.2, "orange");
+      g.addColorStop(0.4, "yellow");
+      g.addColorStop(0.6, "green");
+      g.addColorStop(0.8, "blue");
+      g.addColorStop(1, "violet");
+      ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(boss.x, boss.y, boss.size, 0, Math.PI * 2);
       ctx.fill();
+
+      ctx.fillStyle = "white";
+      ctx.fillText(`Boss HP: ${boss.hp}`, boss.x - 30, boss.y - boss.size - 10);
+    }
+
+    function drawEnemies() {
+      ctx.fillStyle = "lime";
+      enemies.forEach(e => {
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
     }
 
     function drawArrows() {
-      ctx.fillStyle = "white";
-      for (let arrow of arrows) {
-        ctx.fillRect(arrow.x - 2, arrow.y, 4, 10);
-      }
-    }
-
-    function updateArrows() {
-      for (let arrow of arrows) arrow.y -= arrow.speed;
-      for (let arrow of arrows) {
-        const dx = arrow.x - boss.x;
-        const dy = arrow.y - boss.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < boss.size) {
-          boss.hp -= 10;
-          arrow.hit = true;
-        }
-      }
-      arrows.splice(0, arrows.length, ...arrows.filter(a => !a.hit && a.y > 0));
-    }
-
-    function shootArrow() {
-      arrows.push({ x: player.x, y: player.y - 20, speed: 8 });
-    }
-
-    function moveLeft() {
-      player.x -= player.speed;
-    }
-
-    function moveRight() {
-      player.x += player.speed;
-    }
-
-    function updateUI() {
-      slimes.forEach(slime => {
-    slime.x += slime.dx;
-    if (slime.x < slime.size || slime.x > canvas.width - slime.size) {
-      slime.dx *= -1;
-    }
-  });
-
-  document.getElementById("playerHp").textContent = player.hp;
-      document.getElementById("weaponType").textContent = "Bow";
+      ctx.fillStyle = "yellow";
+      arrows.forEach(a => {
+        ctx.fillRect(a.x, a.y, 4, 10);
+      });
     }
 
     function update() {
-  // Boss movement
-  boss.x += bossDirection * 2;
-  if (boss.x < boss.size || boss.x > canvas.width - boss.size) {
-    bossDirection *= -1;
-  }
-      updateArrows();
-      updateUI();
+      // Player movement
+      if (keys["ArrowLeft"]) player.x -= 4;
+      if (keys["ArrowRight"]) player.x += 4;
+      player.x = Math.max(player.size, Math.min(canvas.width - player.size, player.x));
+
+      // Arrows
+      arrows.forEach(a => a.y -= a.speed);
+      arrows.filter(a => a.y > 0);
+
+      // Boss movement
+      boss.x += boss.dx;
+      if (boss.x - boss.size < 0 || boss.x + boss.size > canvas.width) boss.dx *= -1;
+
+      // Arrow collision with boss
+      arrows.forEach((a, i) => {
+        const dx = a.x - boss.x;
+        const dy = a.y - boss.y;
+        if (Math.sqrt(dx * dx + dy * dy) < boss.size) {
+          boss.hp -= 10;
+          a.y = -10;
+        }
+      });
+
+      // Spawn enemies
+      if (Math.random() < 0.02) spawnEnemy();
+      enemies.forEach(e => e.y += e.dy);
+
+      // Arrow hit enemies
+      enemies.forEach((e, i) => {
+        arrows.forEach((a) => {
+          const dx = e.x - a.x;
+          const dy = e.y - a.y;
+          if (Math.sqrt(dx * dx + dy * dy) < e.size) {
+            e.hp -= 10;
+            a.y = -10;
+          }
+        });
+      });
     }
 
     function render() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawPlayer();
       drawBoss();
-  drawSlimes();
+      drawEnemies();
       drawArrows();
     }
 
     function gameLoop() {
       update();
       render();
+
+      document.getElementById("playerHp").textContent = player.hp;
+
       requestAnimationFrame(gameLoop);
     }
+
+    canvas.addEventListener("click", () => {
+      if (player.weapon === "bow" && arrowCooldown <= 0) {
+        arrows.push({
+          x: player.x,
+          y: player.y - 20,
+          speed: 7
+        });
+        arrowCooldown = 20;
+      }
+    });
+
+    document.addEventListener("keydown", e => keys[e.key] = true);
+    document.addEventListener("keyup", e => keys[e.key] = false);
+
+    setInterval(() => {
+      if (arrowCooldown > 0) arrowCooldown--;
+    }, 16);
 
     gameLoop();
   </script>
 </body>
 </html>
-
-function drawSlimes() {
-  for (let slime of slimes) {
-    ctx.fillStyle = slime.color;
-    ctx.beginPath();
-    ctx.arc(slime.x, slime.y, slime.size, 0, Math.PI * 2);
-    ctx.fill();
-    // Draw HP
-    ctx.fillStyle = "white";
-    ctx.font = "12px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("HP: " + slime.hp, slime.x, slime.y - slime.size - 5);
-  }
-}
